@@ -1,13 +1,12 @@
 # =========================================
 #              IMPORTS
 # =========================================
-import asyncio
-import qasync
-from client import main_async
+from qasync import run
+from main_async import main_async
 
 
 # =========================================
 #         MAIN ENTRY POINT
 # =========================================
 if __name__ == "__main__":
-    qasync.run(main_async())
+    run(main_async())

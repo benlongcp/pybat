@@ -75,9 +75,11 @@ def create_main_ui(self):
 
     # --- HP Display Helper Function ---
     def hp_to_hearts(hp, color):
-        heart = f'<span style="color:{color};">❤</span>'
-        empty = f'<span style="color:#555;">❤</span>'
-        return heart * hp + empty * (3 - hp)
+        heart = f'<span style="color:{color}; font-size:18px;">&#10084;</span>'
+        return (
+            heart * hp
+            + '<span style="color:#444; font-size:18px;">&#10084;</span>' * (3 - hp)
+        )
 
     self.hp_to_hearts = hp_to_hearts  # Attach for later use
     self.hp_label.setText(f"Your HP: {hp_to_hearts(3, '#ff2d55')}")  # Red hearts
@@ -100,42 +102,80 @@ def create_main_ui(self):
     round_row = QHBoxLayout()
     self.round_label = QLabel("Round: 1")
     self.round_label.setAlignment(
-        Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+        Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter
     )
-    round_row.addWidget(self.round_label, alignment=Qt.AlignmentFlag.AlignLeft)
+    self.round_label.setStyleSheet("font-size: 16px; color: #ffcc00; margin: 8px 0;")
+    round_row.addWidget(self.round_label)
     round_row.addStretch(1)
     layout.addLayout(round_row)
 
     # --- Action Buttons Row ---
-    btn_layout = QHBoxLayout()
-    btn_layout.setSpacing(4)  # Spacing between buttons
-    self.attack_btn = QPushButton("Attack 🚀💢")
-    self.block_btn = QPushButton("Block 🛡️🛡️")
-    self.load_btn = QPushButton("Load 🔫⏳")
-    btn_layout.addWidget(self.attack_btn)
-    btn_layout.addWidget(self.block_btn)
-    btn_layout.addWidget(self.load_btn)
-    layout.addLayout(btn_layout)
+    action_row = QHBoxLayout()
+    action_row.setSpacing(4)  # Spacing between buttons
+    self.attack_btn = QPushButton("Attack")
+    self.block_btn = QPushButton("Block")
+    self.load_btn = QPushButton("Load")
+    self.submit_btn = QPushButton("Submit")
+    self.reset_btn = QPushButton("Reset")
+    self.hide_game_btn = QPushButton(">")
+    self.hide_game_btn.setCheckable(True)
+    # Restore original button styles
+    btn_style = (
+        "QPushButton {"
+        "  background-color: #222;"
+        "  color: #fff;"
+        "  font-size: 18px;"
+        "  font-weight: bold;"
+        "  border-radius: 8px;"
+        "  padding: 12px 0;"
+        "  margin: 0 4px;"
+        "}"
+        "QPushButton:disabled {"
+        "  background-color: #444;"
+        "  color: #888;"
+        "}"
+    )
+    for btn in [
+        self.attack_btn,
+        self.block_btn,
+        self.load_btn,
+        self.submit_btn,
+        self.reset_btn,
+        self.hide_game_btn,
+    ]:
+        btn.setStyleSheet(btn_style)
+    self.attack_btn.setMinimumWidth(90)
+    self.block_btn.setMinimumWidth(90)
+    self.load_btn.setMinimumWidth(90)
+    self.submit_btn.setMinimumWidth(90)
+    self.reset_btn.setMinimumWidth(90)
+    self.hide_game_btn.setMinimumWidth(40)
+    action_row.addWidget(self.attack_btn)
+    action_row.addWidget(self.block_btn)
+    action_row.addWidget(self.load_btn)
+    action_row.addWidget(self.submit_btn)
+    action_row.addWidget(self.reset_btn)
+    action_row.addWidget(self.hide_game_btn)
+    layout.addLayout(action_row)
 
-    layout.addSpacing(16)  # Spacing between action and submit
+    # --- Block Points Row (Shield Emojis) ---
+    self.block_points_label = QLabel()
+    self.block_points_label.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+    self.block_points_label.setStyleSheet(
+        "font-size: 18px; color: #00bcd4; margin: 4px 0;"
+    )
+    layout.addWidget(self.block_points_label)
 
-    # --- Submit Button ---
-    self.submit_btn = QPushButton("Submit Move")
-    self.submit_btn.setEnabled(False)
-    layout.addWidget(self.submit_btn)
+    # --- Block Points Display Helper Function ---
+    def block_points_to_emojis(points):
+        shield = '<span style="font-size:22px;">🛡️</span>'
+        return (
+            shield * points
+            + '<span style="font-size:22px; color:#444;">🛡️</span>' * (3 - points)
+        )
 
-    layout.addSpacing(16)  # Spacing between submit and reset
-
-    # --- Reset Button ---
-    self.reset_btn = QPushButton("Reset Game")
-    self.reset_btn.setEnabled(False)
-    layout.addWidget(self.reset_btn)
-
-    layout.addSpacing(16)  # Spacing between reset and hide chat
-
-    # --- Hide Chat Button (if present) ---
-    if hasattr(self, "message_toggle_btn"):
-        layout.addWidget(self.message_toggle_btn)
+    self.block_points_to_emojis = block_points_to_emojis
+    self.block_points_label.setText(block_points_to_emojis(3))
 
     return layout
 
@@ -145,34 +185,38 @@ def create_main_ui(self):
 # =========================================
 def apply_dark_theme(self):
     self.setStyleSheet(
-        """
+        self.styleSheet()
+        + "\n"
+        + """
         QWidget {
-            background-color: #121212;
-            color: #ffffff;
-            font-size: 16px;
-        }
-        QLabel {
-            padding: 6px;
-            border-radius: 6px;
+            background-color: #222;
+            color: #fff;
         }
         QPushButton {
-            background-color: #222;
-            color: #ffcc00;
-            padding: 8px;
-            border: 2px solid #ffcc00;
+            background-color: #333;
+            color: #fff;
             border-radius: 6px;
+            padding: 8px 0;
         }
         QPushButton:disabled {
             background-color: #444;
             color: #888;
-            border-color: #666;
         }
-        QTextEdit {
-            background-color: #1e1e1e;
-            color: #ffffff;
-            border: 1px solid #333;
-            border-radius: 6px;
+        QLineEdit, QTextEdit {
+            background-color: #181818;
+            color: #fff;
+            border: 1px solid #444;
+            border-radius: 4px;
         }
-    """
+        QFrame#GameArea {
+            background: #181818;
+            border-radius: 10px;
+            border: none;
+        }
+        QFrame#ChatArea {
+            background: #181818;
+            border-radius: 10px;
+            border: none;
+        }
+        """
     )
-    self.setMinimumSize(800, 500)
