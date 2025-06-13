@@ -17,6 +17,15 @@ submitted_actions = (
 pending_resets = {}  # Tracks which players in a room have requested reset
 client_counter = 1  # Global counter for assigning default client names
 
+# =========================================
+#         GLOBAL LOBBY STATE
+# =========================================
+USERS = set()  # Set of all connected websockets
+LOBBY = {}  # Maps websocket to username
+OPEN_ROOMS = {}  # Maps room_id to dict: { 'id': room_id, 'users': [usernames] }
+USERS_IN_ROOM = set()  # Set of users currently in a room
+INVITES = {}  # Maps inviter websocket to invitee websocket
+
 
 # =========================================
 #         UTILITY FUNCTIONS
@@ -25,6 +34,35 @@ async def notify_pair_status(room_id):
     # Notifies both players in a room that the game is ready to update
     for player in rooms[room_id]["players"]:
         await player.send(json.dumps({"type": "update"}))
+
+
+async def notify_lobby():
+    if USERS:
+        # Mark users in a room
+        usernames = []
+        for user in USERS:
+            name = LOBBY.get(user, "?")
+            if user in USERS_IN_ROOM:
+                name += " (in room)"
+            usernames.append(name)
+        open_rooms = [r["id"] for r in OPEN_ROOMS.values()]
+        message = json.dumps(
+            {
+                "type": "lobby_update",
+                "users": usernames,
+                "open_rooms": open_rooms,
+            }
+        )
+        # Remove closed websockets before broadcasting
+        to_remove = set()
+        for user in USERS:
+            try:
+                await user.send(message)
+            except Exception:
+                to_remove.add(user)
+        for user in to_remove:
+            USERS.discard(user)
+            LOBBY.pop(user, None)
 
 
 # =========================================
@@ -44,14 +82,17 @@ async def handle_message(ws, data):
             )
             client_counter += 1
     elif data["type"] == "submit":
-        # Client submitted their action (attack, block, load)
+        room_id = players[ws].get("room")
+        if not room_id or room_id not in rooms:
+            return
         action = data["action"]
-        room_id = players[ws]["room"]
         submitted_actions.setdefault(room_id, {})[ws] = action
         if len(submitted_actions[room_id]) == 2:
             await process_round(room_id)
     elif data["type"] == "reset":
-        room_id = players[ws]["room"]
+        room_id = players[ws].get("room")
+        if not room_id or room_id not in rooms:
+            return
         if room_id not in pending_resets:
             pending_resets[room_id] = set()
         pending_resets[room_id].add(ws)
@@ -72,7 +113,9 @@ async def handle_message(ws, data):
         else:
             await ws.send(json.dumps({"type": "waiting_for_reset"}))
     elif data["type"] == "chat":
-        room_id = players[ws]["room"]
+        room_id = players[ws].get("room")
+        if not room_id or room_id not in rooms:
+            return
         sender_name = players[ws].get("name", "Player")
         message = data["message"]
         for player in rooms[room_id]["players"]:
@@ -82,6 +125,162 @@ async def handle_message(ws, data):
                         {"type": "chat", "sender": sender_name, "message": message}
                     )
                 )
+
+
+# =========================================
+#         MESSAGE HANDLER (LOBBY)
+# =========================================
+async def handle_lobby_message(ws, data):
+    global INVITES
+    if data.get("type") == "create_room":
+        # Prevent user from creating more than one open room or being in multiple rooms
+        if ws in USERS_IN_ROOM:
+            # Already in a room, ignore request
+            return
+        for room in OPEN_ROOMS.values():
+            if LOBBY[ws] in room["users"]:
+                # Already has an open room, ignore request
+                return
+        room_id = f"{LOBBY[ws]}'s room"
+        OPEN_ROOMS[room_id] = {"id": room_id, "users": [LOBBY[ws]]}
+        USERS_IN_ROOM.add(ws)
+        await ws.send(json.dumps({"type": "room_joined", "usernames": [LOBBY[ws]]}))
+        await notify_lobby()
+    elif data.get("type") == "join_room":
+        # Prevent user from joining if already in a room
+        if ws in USERS_IN_ROOM:
+            return
+        room_id = data.get("room_id")
+        room = OPEN_ROOMS.get(room_id)
+        if room and len(room["users"]) == 1:
+            room["users"].append(LOBBY[ws])
+            # Find the websocket of the room creator
+            creator_ws = None
+            for w, name in LOBBY.items():
+                if name == room["users"][0]:
+                    creator_ws = w
+                    break
+            USERS_IN_ROOM.add(ws)
+            USERS_IN_ROOM.add(creator_ws)
+            usernames = room["users"]
+            # Notify both clients that they have joined the room
+            await ws.send(json.dumps({"type": "room_joined", "usernames": usernames}))
+            await creator_ws.send(
+                json.dumps({"type": "room_joined", "usernames": usernames})
+            )
+            await notify_lobby()
+    elif data.get("type") == "leave_room":
+        name = LOBBY.get(ws)
+        USERS_IN_ROOM.discard(ws)
+        # Remove user from any open room
+        for room_id, room in list(OPEN_ROOMS.items()):
+            if name in room["users"]:
+                room["users"].remove(name)
+                if not room["users"]:
+                    del OPEN_ROOMS[room_id]
+        # --- Notify the other player in a game room, if any ---
+        user_room = players.get(ws, {}).get("room")
+        if user_room and user_room in rooms:
+            other_players = [p for p in rooms[user_room]["players"] if p != ws]
+            for other in other_players:
+                try:
+                    await other.send(json.dumps({"type": "room_left"}))
+                    USERS_IN_ROOM.discard(
+                        other
+                    )  # Remove the other player from USERS_IN_ROOM
+                    if other in players:
+                        players[other]["room"] = None
+                except Exception:
+                    pass
+            del rooms[user_room]
+        if ws in players:
+            players[ws]["room"] = None
+        await ws.send(json.dumps({"type": "room_left"}))
+        await notify_lobby()
+    elif data.get("type") == "invite":
+        # Only allow one invite at a time per user
+        to_name = data.get("to")
+        from_name = LOBBY.get(ws)
+        if not to_name or not from_name:
+            return
+        # Find the websocket for the invitee
+        to_ws = None
+        for user_ws, name in LOBBY.items():
+            if name == to_name:
+                to_ws = user_ws
+                break
+        if not to_ws or to_ws in INVITES.values() or ws in INVITES:
+            # Already invited or has a pending invite
+            return
+        INVITES[ws] = to_ws
+        await to_ws.send(json.dumps({"type": "invite_received", "from": from_name}))
+    elif data.get("type") == "invite_response":
+        from_name = data.get("from")
+        accepted = data.get("accepted")
+        # Find inviter websocket
+        inviter_ws = None
+        for user_ws, name in LOBBY.items():
+            if name == from_name:
+                inviter_ws = user_ws
+                break
+        if not inviter_ws or inviter_ws not in INVITES:
+            return
+        invitee_ws = INVITES[inviter_ws]
+        # Notify inviter of result
+        await inviter_ws.send(
+            json.dumps(
+                {"type": "invite_result", "from": LOBBY.get(ws), "accepted": accepted}
+            )
+        )
+        if accepted:
+            # Create a room for both users
+            room_id = f"{from_name} vs {LOBBY.get(ws)}"
+            OPEN_ROOMS[room_id] = {"id": room_id, "users": [from_name, LOBBY.get(ws)]}
+            USERS_IN_ROOM.add(inviter_ws)
+            USERS_IN_ROOM.add(ws)
+            await inviter_ws.send(
+                json.dumps(
+                    {"type": "room_joined", "usernames": [from_name, LOBBY.get(ws)]}
+                )
+            )
+            await ws.send(
+                json.dumps(
+                    {"type": "room_joined", "usernames": [from_name, LOBBY.get(ws)]}
+                )
+            )
+            await notify_lobby()
+        INVITES.pop(inviter_ws, None)
+        await notify_lobby()
+    elif data.get("type") == "enter_room":
+        # This is sent by the inviter after invite is accepted, to trigger game session
+        # Find the open room with both users
+        inviter_name = LOBBY.get(ws)
+        for room_id, room in list(OPEN_ROOMS.items()):
+            if inviter_name in room["users"] and len(room["users"]) == 2:
+                # Create a game session for both users
+                user_names = room["users"]
+                ws1 = None
+                ws2 = None
+                for user_ws, name in LOBBY.items():
+                    if name == user_names[0]:
+                        ws1 = user_ws
+                    elif name == user_names[1]:
+                        ws2 = user_ws
+                if ws1 and ws2:
+                    # Set up the game room
+                    room_uuid = str(uuid.uuid4())
+                    rooms[room_uuid] = {"players": [ws1, ws2], "round": 0}
+                    players[ws1]["room"] = room_uuid
+                    players[ws2]["room"] = room_uuid
+                    players[ws1]["hp"] = 3
+                    players[ws2]["hp"] = 3
+                    players[ws1]["loaded"] = False
+                    players[ws2]["loaded"] = False
+                    # Remove from open rooms
+                    del OPEN_ROOMS[room_id]
+                    await notify_lobby()
+                    await notify_pair_status(room_uuid)
+                break
 
 
 # =========================================
@@ -142,7 +341,7 @@ async def process_round(room_id):
 # =========================================
 async def broadcast_state(room_id):
     if "round" not in rooms[room_id]:
-        rooms[room_id]["round"] = 0
+        rooms[room_id]["round"] = -2
     round_number = rooms[room_id]["round"] + 1
     players_list = rooms[room_id]["players"]
     if len(players_list) == 2:
@@ -171,55 +370,65 @@ async def broadcast_state(room_id):
 
 
 # =========================================
-#         CONNECTION HANDLER
+#         CONNECTION HANDLER (LOBBY)
 # =========================================
 async def handler(ws):
-    players[ws] = {"room": None, "hp": 3, "loaded": False, "name": "Player"}
-    assigned = False
-    for room_id, room in rooms.items():
-        if len(room["players"]) == 1:
-            room["players"].append(ws)
-            players[ws]["room"] = room_id
-            players[room["players"][0]]["room"] = room_id
-            if room["round"] == 0:
-                room["round"] = 1
-            assigned = True
-            break
-    if assigned:
-        await broadcast_state(room_id)
-    if not assigned:
-        room_id = str(uuid.uuid4())
-        rooms[room_id] = {"players": [ws], "round": -1}
-        players[ws]["room"] = room_id
-        await ws.send(json.dumps({"type": "waiting"}))
     try:
-        async for message in ws:
-            data = json.loads(message)
-            await handle_message(ws, data)
-    except websockets.ConnectionClosed:
-        print("Client disconnected")
+        name_msg = await ws.recv()
+        name_data = (
+            json.loads(name_msg) if name_msg.startswith("{") else {"name": name_msg}
+        )
+        name = name_data.get("name", "Player")
+        LOBBY[ws] = name
+        USERS.add(ws)
+        players[ws] = {"name": name, "hp": 3, "loaded": False, "room": None}
+        await notify_lobby()
+        while True:
+            msg = await ws.recv()
+            data = json.loads(msg)
+            # Lobby message handling
+            if data.get("type") in (
+                "create_room",
+                "join_room",
+                "leave_room",
+                "invite",
+                "invite_response",
+                "enter_room",
+            ):
+                await handle_lobby_message(ws, data)
+            # Game message handling
+            elif data.get("type") in ("submit", "reset", "chat"):
+                await handle_message(ws, data)
+    except Exception as e:
+        print(f"Error: {e}")
     finally:
-        room_id = players[ws]["room"]
-        if room_id in rooms:
-            rooms[room_id]["players"] = [
-                p for p in rooms[room_id]["players"] if p != ws
-            ]
-            if not rooms[room_id]["players"]:
-                del rooms[room_id]
-            else:
-                for player in rooms[room_id]["players"]:
-                    try:
-                        if player.open:
-                            await player.send(json.dumps({"type": "waiting"}))
-                    except Exception as e:
-                        print(f"Error sending to player during cleanup: {e}")
+        USERS.discard(ws)
+        name = LOBBY.pop(ws, None)
+        USERS_IN_ROOM.discard(ws)
+        # Remove user from any open room
+        for rid, room in list(OPEN_ROOMS.items()):
+            if name in room["users"]:
+                room["users"].remove(name)
+                if not room["users"]:
+                    del OPEN_ROOMS[rid]
+        # --- Notify the other player in a game room, if any ---
+        user_room = players.get(ws, {}).get("room")
+        if user_room and user_room in rooms:
+            other_players = [p for p in rooms[user_room]["players"] if p != ws]
+            for other in other_players:
+                try:
+                    await other.send(json.dumps({"type": "room_left"}))
+                    USERS_IN_ROOM.discard(
+                        other
+                    )  # Remove the other player from USERS_IN_ROOM
+                    if other in players:
+                        players[other]["room"] = None
+                except Exception:
+                    pass
+            del rooms[user_room]
         if ws in players:
-            del players[ws]
-        if room_id in submitted_actions:
-            del submitted_actions[room_id]
-        if room_id in pending_resets:
-            if not rooms.get(room_id) or not rooms[room_id]["players"]:
-                del pending_resets[room_id]
+            players[ws]["room"] = None
+        await notify_lobby()
 
 
 # =========================================
