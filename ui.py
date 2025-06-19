@@ -116,7 +116,6 @@ def create_main_ui(self):
     self.block_btn = QPushButton("Block")
     self.load_btn = QPushButton("Load")
     self.standby_btn = QPushButton("Standby")
-    self.reset_btn = QPushButton("Reset")
     self.hide_game_btn = QPushButton(">")
     self.hide_game_btn.setCheckable(True)
     btn_style = (
@@ -139,7 +138,6 @@ def create_main_ui(self):
         self.block_btn,
         self.load_btn,
         self.standby_btn,
-        self.reset_btn,
         self.hide_game_btn,
     ]:
         btn.setStyleSheet(btn_style)
@@ -147,23 +145,26 @@ def create_main_ui(self):
     self.block_btn.setMinimumWidth(90)
     self.load_btn.setMinimumWidth(90)
     self.standby_btn.setMinimumWidth(90)
-    self.reset_btn.setMinimumWidth(90)
     self.hide_game_btn.setMinimumWidth(40)
     action_row.addWidget(self.attack_btn)
     action_row.addWidget(self.block_btn)
     action_row.addWidget(self.load_btn)
     action_row.addWidget(self.standby_btn)
-    action_row.addWidget(self.reset_btn)
     action_row.addWidget(self.hide_game_btn)
     layout.addLayout(action_row)
 
-    # --- Submit Button Row (moved below action buttons) ---
+    # --- Submit and Reset Button Row (below action buttons) ---
     submit_row = QHBoxLayout()
     submit_row.addStretch(1)
     self.submit_btn = QPushButton("Submit")
     self.submit_btn.setStyleSheet(btn_style)
     self.submit_btn.setMinimumWidth(120)
+    self.reset_btn = QPushButton("Reset")
+    self.reset_btn.setStyleSheet(btn_style)
+    self.reset_btn.setMinimumWidth(120)
+    self.reset_btn.setVisible(False)  # Hide by default
     submit_row.addWidget(self.submit_btn)
+    submit_row.addWidget(self.reset_btn)
     submit_row.addStretch(1)
     layout.addLayout(submit_row)
 

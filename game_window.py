@@ -170,6 +170,7 @@ class GameClient(QtWidgets.QWidget):
         self.load_btn.setEnabled(False)
         self.standby_btn.setEnabled(False)
         self.submit_btn.setEnabled(False)
+        self.reset_btn.setVisible(False)  # Always hide reset except at game over
 
     def select_action(self, action):
         self.action = action
@@ -222,8 +223,11 @@ class GameClient(QtWidgets.QWidget):
 
     def reset_game(self):
         if self.websocket:
+            import asyncio, json
+
             asyncio.create_task(self.websocket.send(json.dumps({"type": "reset"})))
         self.reset_btn.setEnabled(False)
+        self.reset_btn.setVisible(False)  # Hide reset after clicking
         self.game_frame.setStyleSheet("QFrame#GameArea { border: none; }")
         self.round_label.setText("Round: 1")
         self.round = 1
@@ -388,6 +392,7 @@ class GameClient(QtWidgets.QWidget):
                         f"QFrame#GameArea {{ border: 4px solid {color}; border-radius: 10px; }}"
                     )
                     self.disable_buttons()
+                    self.reset_btn.setVisible(True)  # Show reset at game over
                     self.reset_btn.setEnabled(True)
                     self.append_chat_message("", "", match_end_sep=True)
                 elif msg_type == "chat":
@@ -537,6 +542,7 @@ class GameClient(QtWidgets.QWidget):
                 f"QFrame#GameArea {{ border: 4px solid {color}; border-radius: 10px; }}"
             )
             self.disable_buttons()
+            self.reset_btn.setVisible(True)  # Show reset at game over
             self.reset_btn.setEnabled(True)
             self.append_chat_message("", "", match_end_sep=True)
         elif msg_type == "chat":
