@@ -77,6 +77,7 @@ class GameClient(QtWidgets.QWidget):
         self.attack_btn.clicked.connect(lambda: self.select_action("attack"))
         self.block_btn.clicked.connect(lambda: self.select_action("block"))
         self.load_btn.clicked.connect(lambda: self.select_action("load"))
+        self.standby_btn.clicked.connect(lambda: self.select_action("standby"))
         self.submit_btn.clicked.connect(self.submit_action)
         self.reset_btn.clicked.connect(self.reset_game)
 
@@ -145,22 +146,29 @@ class GameClient(QtWidgets.QWidget):
 
     def update_block_points_ui(self):
         if hasattr(self, "block_points_label"):
-            # Always show exactly the number of shields as block points (no trailing spaces)
-            self.block_points_label.setText("🛡️" * self.block_points)
+            # Show your block points and opponent's block points
+            self.block_points_label.setText(
+                f"🛡️" * self.block_points
+                + " | Enemy: "
+                + "🛡️" * getattr(self, "opponent_block_points", 3)
+            )
 
     def enable_buttons(self):
         self.attack_btn.setEnabled(self.loaded)
         self.block_btn.setEnabled(self.block_points > 0)
         self.load_btn.setEnabled(not self.loaded)
+        self.standby_btn.setEnabled(True)
         self.attack_btn.setStyleSheet("")
         self.block_btn.setStyleSheet("")
         self.load_btn.setStyleSheet("")
+        self.standby_btn.setStyleSheet("")
         self.update_block_points_ui()
 
     def disable_buttons(self):
         self.attack_btn.setEnabled(False)
         self.block_btn.setEnabled(False)
         self.load_btn.setEnabled(False)
+        self.standby_btn.setEnabled(False)
         self.submit_btn.setEnabled(False)
 
     def select_action(self, action):
@@ -173,21 +181,27 @@ class GameClient(QtWidgets.QWidget):
         self.attack_btn.setStyleSheet(default_style)
         self.block_btn.setStyleSheet(default_style)
         self.load_btn.setStyleSheet(default_style)
+        self.standby_btn.setStyleSheet(default_style)
         if action == "attack":
             self.attack_btn.setStyleSheet(highlight_style)
         elif action == "block":
             self.block_btn.setStyleSheet(highlight_style)
         elif action == "load":
             self.load_btn.setStyleSheet(highlight_style)
+        elif action == "standby":
+            self.standby_btn.setStyleSheet(highlight_style)
         self.update_block_points_ui()
 
     def submit_action(self):
         if self.websocket and self.action:
-            # Block points logic: decrement if block, increment if not block
+            # Block points logic: decrement if block, increment if not block or standby
             if self.action == "block":
                 if self.block_points > 0:
                     self.block_points -= 1
-            else:
+            elif self.action in ("load", "attack"):
+                if self.block_points < 3:
+                    self.block_points += 1
+            elif self.action == "standby":
                 if self.block_points < 3:
                     self.block_points += 1
             self.update_block_points_ui()
@@ -346,6 +360,9 @@ class GameClient(QtWidgets.QWidget):
                         self.highlight_label(self.opponent_hp_label)
                     self.hp = data["hp"]
                     self.opponent_hp = data["opponent_hp"]
+                    # Update block points from server
+                    self.block_points = data.get("block_points", self.block_points)
+                    self.opponent_block_points = data.get("opponent_block_points", 3)
                     self.update_hp_labels()
                     self.round_label.setText(f"Round: {self.round}")
                     loaded_emoji = "✅" if self.loaded else "❌"
@@ -390,6 +407,8 @@ class GameClient(QtWidgets.QWidget):
                 return ("attacked, but your opponent blocked", "blocked your attack")
             elif opp_action == "load":
                 return ("hit your opponent", "loaded")
+            elif opp_action == "standby":
+                return ("attacked", "stood by and got hit")
             else:
                 return ("attacked", "attacked")
         elif my_action == "block":
@@ -397,6 +416,8 @@ class GameClient(QtWidgets.QWidget):
                 return ("blocked", "attacked, but you blocked")
             elif opp_action == "load":
                 return ("blocked", "loaded")
+            elif opp_action == "standby":
+                return ("blocked", "stood by")
             else:
                 return ("blocked", "blocked")
         elif my_action == "load":
@@ -404,8 +425,19 @@ class GameClient(QtWidgets.QWidget):
                 return ("loaded", "attacked")
             elif opp_action == "block":
                 return ("loaded", "blocked")
+            elif opp_action == "standby":
+                return ("loaded", "stood by")
             else:
                 return ("loaded", "loaded")
+        elif my_action == "standby":
+            if opp_action == "attack":
+                return ("stood by and got hit", "attacked")
+            elif opp_action == "block":
+                return ("stood by", "blocked")
+            elif opp_action == "load":
+                return ("stood by", "loaded")
+            elif opp_action == "standby":
+                return ("stood by", "stood by")
         return (my_action, opp_action)
 
     def send_message(self):
@@ -477,6 +509,9 @@ class GameClient(QtWidgets.QWidget):
                 self.highlight_label(self.opponent_hp_label)
             self.hp = data.get("hp", self.hp)
             self.opponent_hp = data.get("opponent_hp", self.opponent_hp)
+            # Update block points from server
+            self.block_points = data.get("block_points", self.block_points)
+            self.opponent_block_points = data.get("opponent_block_points", 3)
             self.update_hp_labels()
             self.round_label.setText(f"Round: {self.round}")
             loaded_emoji = "✅" if self.loaded else "❌"

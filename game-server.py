@@ -104,6 +104,7 @@ async def handle_message(ws, data):
             for player in rooms[room_id]["players"]:
                 players[player]["hp"] = 3
                 players[player]["loaded"] = False
+                players[player]["block_points"] = 3
             rooms[room_id][
                 "round"
             ] = -1  # Offset round to -1 so broadcast_state sends round 1
@@ -296,6 +297,8 @@ async def handle_lobby_message(ws, data):
                     players[ws2]["hp"] = 3
                     players[ws1]["loaded"] = False
                     players[ws2]["loaded"] = False
+                    players[ws1]["block_points"] = 3
+                    players[ws2]["block_points"] = 3
                     # Remove from open rooms
                     del OPEN_ROOMS[room_id]
                     await notify_lobby()
@@ -321,12 +324,34 @@ async def process_round(room_id):
                 if defender_action != "block":
                     defender["hp"] -= 1
                 attacker["loaded"] = False
+        elif attacker_action == "block":
+            # Deplete block points when block is used
+            if "block_points" not in attacker:
+                attacker["block_points"] = 3
+            if attacker["block_points"] > 0:
+                attacker["block_points"] -= 1
         elif attacker_action == "load":
             if not attacker["loaded"]:
                 attacker["loaded"] = True
+        elif attacker_action == "standby":
+            # Standby does nothing except replenish block points (handled below)
+            pass
 
     resolve(a, b, a_action, b_action)
     resolve(b, a, b_action, a_action)
+
+    # Block point replenishment for standby (max 3)
+    if a_action == "standby":
+        if "block_points" not in a:
+            a["block_points"] = 3
+        if a["block_points"] < 3:
+            a["block_points"] += 1
+    if b_action == "standby":
+        if "block_points" not in b:
+            b["block_points"] = 3
+        if b["block_points"] < 3:
+            b["block_points"] += 1
+
     if "round" in rooms[room_id]:
         rooms[room_id]["round"] += 1
     for ws, my_action, opp_action in [
@@ -373,6 +398,11 @@ async def broadcast_state(room_id):
         opponent = [p for p in rooms[room_id]["players"] if p != player][0]
         your_name = players[player].get("name", "Player")
         opponent_name = players[opponent].get("name", "Enemy")
+        # Ensure block_points is always present
+        if "block_points" not in players[player]:
+            players[player]["block_points"] = 3
+        if "block_points" not in players[opponent]:
+            players[opponent]["block_points"] = 3
         await player.send(
             json.dumps(
                 {
@@ -381,6 +411,8 @@ async def broadcast_state(room_id):
                     "opponent_hp": players[opponent]["hp"],
                     "loaded": players[player]["loaded"],
                     "opponent_loaded": players[opponent]["loaded"],
+                    "block_points": players[player]["block_points"],
+                    "opponent_block_points": players[opponent]["block_points"],
                     "round": round_number,
                     "your_name": your_name,
                     "opponent_name": opponent_name,

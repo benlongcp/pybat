@@ -115,11 +115,10 @@ def create_main_ui(self):
     self.attack_btn = QPushButton("Attack")
     self.block_btn = QPushButton("Block")
     self.load_btn = QPushButton("Load")
-    self.submit_btn = QPushButton("Submit")
+    self.standby_btn = QPushButton("Standby")
     self.reset_btn = QPushButton("Reset")
     self.hide_game_btn = QPushButton(">")
     self.hide_game_btn.setCheckable(True)
-    # Restore original button styles
     btn_style = (
         "QPushButton {"
         "  background-color: #222;"
@@ -139,7 +138,7 @@ def create_main_ui(self):
         self.attack_btn,
         self.block_btn,
         self.load_btn,
-        self.submit_btn,
+        self.standby_btn,
         self.reset_btn,
         self.hide_game_btn,
     ]:
@@ -147,16 +146,26 @@ def create_main_ui(self):
     self.attack_btn.setMinimumWidth(90)
     self.block_btn.setMinimumWidth(90)
     self.load_btn.setMinimumWidth(90)
-    self.submit_btn.setMinimumWidth(90)
+    self.standby_btn.setMinimumWidth(90)
     self.reset_btn.setMinimumWidth(90)
     self.hide_game_btn.setMinimumWidth(40)
     action_row.addWidget(self.attack_btn)
     action_row.addWidget(self.block_btn)
     action_row.addWidget(self.load_btn)
-    action_row.addWidget(self.submit_btn)
+    action_row.addWidget(self.standby_btn)
     action_row.addWidget(self.reset_btn)
     action_row.addWidget(self.hide_game_btn)
     layout.addLayout(action_row)
+
+    # --- Submit Button Row (moved below action buttons) ---
+    submit_row = QHBoxLayout()
+    submit_row.addStretch(1)
+    self.submit_btn = QPushButton("Submit")
+    self.submit_btn.setStyleSheet(btn_style)
+    self.submit_btn.setMinimumWidth(120)
+    submit_row.addWidget(self.submit_btn)
+    submit_row.addStretch(1)
+    layout.addLayout(submit_row)
 
     # --- Block Points Row (Shield Emojis) ---
     self.block_points_label = QLabel()
