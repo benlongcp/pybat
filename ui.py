@@ -73,6 +73,27 @@ def create_main_ui(self):
     loaded_row.addWidget(self.enemy_loaded_label)
     layout.addLayout(loaded_row)
 
+    # --- Block Points Row (Player and Opponent Block Points) ---
+    block_row = QHBoxLayout()
+    self.block_points_label = QLabel()
+    self.block_points_label.setAlignment(
+        Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter
+    )
+    self.block_points_label.setStyleSheet(
+        "font-size: 18px; color: #00bcd4; margin: 4px 0;"
+    )
+    self.opponent_block_points_label = QLabel()
+    self.opponent_block_points_label.setAlignment(
+        Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+    )
+    self.opponent_block_points_label.setStyleSheet(
+        "font-size: 18px; color: #00bcd4; margin: 4px 0;"
+    )
+    block_row.addWidget(self.block_points_label)
+    block_row.addStretch(1)
+    block_row.addWidget(self.opponent_block_points_label)
+    layout.addLayout(block_row)
+
     # --- HP Display Helper Function ---
     def hp_to_hearts(hp, color):
         heart = f'<span style="color:{color}; font-size:18px;">&#10084;</span>'
@@ -168,24 +189,16 @@ def create_main_ui(self):
     submit_row.addStretch(1)
     layout.addLayout(submit_row)
 
-    # --- Block Points Row (Shield Emojis) ---
-    self.block_points_label = QLabel()
-    self.block_points_label.setAlignment(Qt.AlignmentFlag.AlignHCenter)
-    self.block_points_label.setStyleSheet(
-        "font-size: 18px; color: #00bcd4; margin: 4px 0;"
-    )
-    layout.addWidget(self.block_points_label)
-
     # --- Block Points Display Helper Function ---
     def block_points_to_emojis(points):
         shield = '<span style="font-size:22px;">🛡️</span>'
-        return (
-            shield * points
-            + '<span style="font-size:22px; color:#444;">🛡️</span>' * (3 - points)
-        )
+        return shield * points
 
+    # Attach the emoji function to self
     self.block_points_to_emojis = block_points_to_emojis
+    # Set initial value for both labels
     self.block_points_label.setText(block_points_to_emojis(3))
+    self.opponent_block_points_label.setText(block_points_to_emojis(3))
 
     return layout
 

@@ -78,7 +78,10 @@ class GameClient(QtWidgets.QWidget):
         self.block_btn.clicked.connect(lambda: self.select_action("block"))
         self.load_btn.clicked.connect(lambda: self.select_action("load"))
         self.standby_btn.clicked.connect(lambda: self.select_action("standby"))
-        self.submit_btn.clicked.connect(self.submit_action)
+        # Use asyncio.create_task to call async submit_action
+        self.submit_btn.clicked.connect(
+            lambda: asyncio.create_task(self.submit_action())
+        )
         self.reset_btn.clicked.connect(self.reset_game)
 
         def clear_chat_alert(checked):
@@ -140,18 +143,43 @@ class GameClient(QtWidgets.QWidget):
         self.game_frame_ref.setVisible(False)
         QTimer.singleShot(0, lambda: self.setFixedWidth(300))
 
-    def block_points_to_emojis(self, points):
-        # Always return exactly the number of shields as block points
-        return "🛡️" * points + " " * (3 - points)
-
     def update_block_points_ui(self):
-        if hasattr(self, "block_points_label"):
-            # Show your block points and opponent's block points
-            self.block_points_label.setText(
-                f"🛡️" * self.block_points
-                + " | Enemy: "
-                + "🛡️" * getattr(self, "opponent_block_points", 3)
+        # Debug: Print current block points and label existence
+        print(
+            f"[DEBUG] update_block_points_ui: self.block_points = {self.block_points}"
+        )
+        print(
+            f"[DEBUG] update_block_points_ui: self.opponent_block_points = {getattr(self, 'opponent_block_points', 'N/A')}"
+        )
+        print(
+            f"[DEBUG] block_points_label exists: {hasattr(self, 'block_points_label')}"
+        )
+        print(
+            f"[DEBUG] opponent_block_points_label exists: {hasattr(self, 'opponent_block_points_label')}"
+        )
+        print(
+            f"[DEBUG] block_points_to_emojis exists: {hasattr(self, 'block_points_to_emojis')}"
+        )
+        if hasattr(self, "block_points_label") and hasattr(
+            self, "block_points_to_emojis"
+        ):
+            emoji_str = self.block_points_to_emojis(self.block_points)
+            print(f"[DEBUG] Setting block_points_label to: {emoji_str}")
+            self.block_points_label.setTextFormat(Qt.TextFormat.RichText)
+            self.block_points_label.setText(emoji_str)
+            self.block_points_label.repaint()  # Force UI refresh
+        if hasattr(self, "opponent_block_points_label") and hasattr(
+            self, "block_points_to_emojis"
+        ):
+            opp_emoji_str = self.block_points_to_emojis(
+                getattr(self, "opponent_block_points", 3)
             )
+            print(f"[DEBUG] Setting opponent_block_points_label to: {opp_emoji_str}")
+            self.opponent_block_points_label.setTextFormat(Qt.TextFormat.RichText)
+            self.opponent_block_points_label.setText(opp_emoji_str)
+            self.opponent_block_points_label.repaint()  # Force UI refresh
+        # Force Qt to process events and update the UI immediately
+        QtWidgets.QApplication.processEvents()
 
     def enable_buttons(self):
         self.attack_btn.setEnabled(self.loaded)
@@ -193,29 +221,38 @@ class GameClient(QtWidgets.QWidget):
             self.standby_btn.setStyleSheet(highlight_style)
         self.update_block_points_ui()
 
-    def submit_action(self):
+    async def submit_action(self):
+        print(
+            f"[DEBUG] submit_action: action={self.action}, block_points(before)={self.block_points}"
+        )
         if self.websocket and self.action:
             # Block points logic: decrement if block, increment if not block or standby
             if self.action == "block":
                 if self.block_points > 0:
                     self.block_points -= 1
+                    print(
+                        f"[DEBUG] submit_action: block_points(after)={self.block_points}"
+                    )
+                    self.update_block_points_ui()  # Update UI immediately after block
             elif self.action in ("load", "attack"):
                 if self.block_points < 3:
                     self.block_points += 1
+                    print(
+                        f"[DEBUG] submit_action: block_points(after)={self.block_points}"
+                    )
             elif self.action == "standby":
                 if self.block_points < 3:
                     self.block_points += 1
+                    print(
+                        f"[DEBUG] submit_action: block_points(after)={self.block_points}"
+                    )
             self.update_block_points_ui()
             if self.block_points == 0:
                 self.block_btn.setEnabled(False)
             else:
                 self.block_btn.setEnabled(True)
-            import asyncio
-
-            asyncio.create_task(
-                self.websocket.send(
-                    json.dumps({"type": "submit", "action": self.action})
-                )
+            await self.websocket.send(
+                json.dumps({"type": "submit", "action": self.action})
             )
             self.submit_btn.setEnabled(False)
             self.disable_buttons()
@@ -514,9 +551,11 @@ class GameClient(QtWidgets.QWidget):
                 self.highlight_label(self.opponent_hp_label)
             self.hp = data.get("hp", self.hp)
             self.opponent_hp = data.get("opponent_hp", self.opponent_hp)
-            # Update block points from server
+            # Update block points from server for both player and opponent
             self.block_points = data.get("block_points", self.block_points)
-            self.opponent_block_points = data.get("opponent_block_points", 3)
+            self.opponent_block_points = data.get(
+                "opponent_block_points", getattr(self, "opponent_block_points", 3)
+            )
             self.update_hp_labels()
             self.round_label.setText(f"Round: {self.round}")
             loaded_emoji = "✅" if self.loaded else "❌"
