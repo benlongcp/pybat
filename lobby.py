@@ -1,3 +1,10 @@
+# lobby.py - Lobby logic for player matchmaking and room management
+# This module defines the LobbyWindow and RoomWindow classes, which manage the
+# user interface and interactions for the game lobby and rooms. It handles
+# user registration, room creation, joining, and chat functionality.
+#
+# TODO: Add comments to all lobby functions and classes, including any stubs or placeholders.
+
 from PyQt6 import QtWidgets
 from PyQt6.QtWidgets import QMessageBox
 import asyncio

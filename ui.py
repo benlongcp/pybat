@@ -1,3 +1,4 @@
+# ui.py - UI creation and theming utilities
 # =========================================
 #              IMPORTS
 # =========================================
@@ -137,8 +138,6 @@ def create_main_ui(self):
     self.block_btn = QPushButton("Block")
     self.load_btn = QPushButton("Load")
     self.standby_btn = QPushButton("Standby")
-    self.hide_game_btn = QPushButton(">")
-    self.hide_game_btn.setCheckable(True)
     btn_style = (
         "QPushButton {"
         "  background-color: #222;"
@@ -159,26 +158,27 @@ def create_main_ui(self):
         self.block_btn,
         self.load_btn,
         self.standby_btn,
-        self.hide_game_btn,
     ]:
         btn.setStyleSheet(btn_style)
     self.attack_btn.setMinimumWidth(90)
     self.block_btn.setMinimumWidth(90)
     self.load_btn.setMinimumWidth(90)
     self.standby_btn.setMinimumWidth(90)
-    self.hide_game_btn.setMinimumWidth(40)
     action_row.addWidget(self.attack_btn)
     action_row.addWidget(self.block_btn)
     action_row.addWidget(self.load_btn)
     action_row.addWidget(self.standby_btn)
-    action_row.addWidget(self.hide_game_btn)
     layout.addLayout(action_row)
+
+    # --- Spacer between action buttons and submit/reset buttons ---
+    layout.addSpacing(16)  # Add vertical space (adjust px as needed)
 
     # --- Submit and Reset Button Row (below action buttons) ---
     submit_row = QHBoxLayout()
     submit_row.addStretch(1)
     self.submit_btn = QPushButton("Submit")
-    self.submit_btn.setStyleSheet(btn_style)
+    # Add 4px margin around the submit button
+    self.submit_btn.setStyleSheet(btn_style + " margin: 4px;")
     self.submit_btn.setMinimumWidth(120)
     self.reset_btn = QPushButton("Reset")
     self.reset_btn.setStyleSheet(btn_style)
@@ -243,3 +243,6 @@ def apply_dark_theme(self):
         }
         """
     )
+
+
+# TODO: Add comments to all UI functions and classes, including any stubs or placeholders.

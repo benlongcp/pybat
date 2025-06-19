@@ -1,98 +1,107 @@
 import json
 import asyncio
-from PyQt6 import QtWidgets, QtCore
-from PyQt6.QtCore import QTimer, Qt
-from PyQt6.QtWidgets import QFrame, QVBoxLayout
-from splitters import DoubleLineSplitter
-from ui import create_main_ui, apply_dark_theme
-from chat import create_chat_ui, connect_chat_signals
-from network import connect_to_server
+from PyQt6 import QtWidgets, QtCore  # Import PyQt6 widgets and core modules
+from PyQt6.QtCore import QTimer, Qt  # Import QTimer and Qt constants
+from PyQt6.QtWidgets import QFrame, QVBoxLayout  # Import QFrame and QVBoxLayout
+from splitters import DoubleLineSplitter  # Custom splitter for UI
+from ui import create_main_ui, apply_dark_theme  # UI creation and theming
+from chat import create_chat_ui, connect_chat_signals  # Chat UI and signals
+from network import connect_to_server  # Network connection helper
 
 
-class GameClient(QtWidgets.QWidget):
+class GameClient(QtWidgets.QWidget):  # Main game client widget
     def __init__(self, loop, websocket, username, opponent_name, parent_lobby=None):
-        super().__init__()
-        self.setObjectName("GameClient")
-        self.setStyleSheet(self.styleSheet() + "\n#GameClient { border: none; }")
-        self.setWindowTitle(f"Game - {username} vs {opponent_name}")
-        self.action = None
-        self.loaded = False
-        self.hp = 3
-        self.opponent_hp = 3
-        self.round = 0
-        self.opponent_name = opponent_name
-        self.username = username
-        self.websocket = websocket
-        self.loop = loop
-        self.last_actions = None
-        self.parent_lobby = parent_lobby
-        self.block_points = 3
-        self.init_ui()
-        apply_dark_theme(self)
-        self._last_round_for_chat = 0
-        self.setMinimumSize(700, 500)
-        self.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose)
+        super().__init__()  # Initialize QWidget
+        self.setObjectName("GameClient")  # Set object name for styling
+        self.setStyleSheet(
+            self.styleSheet() + "\n#GameClient { border: none; }"
+        )  # Add custom style
+        self.setWindowTitle(f"Game - {username} vs {opponent_name}")  # Set window title
+        self.action = None  # Current selected action
+        self.loaded = False  # Whether player is loaded
+        self.hp = 3  # Player HP
+        self.opponent_hp = 3  # Opponent HP
+        self.round = 0  # Current round
+        self.opponent_name = opponent_name  # Opponent's name
+        self.username = username  # Player's name
+        self.websocket = websocket  # WebSocket connection
+        self.loop = loop  # Asyncio event loop
+        self.last_actions = None  # Last round's actions
+        self.parent_lobby = parent_lobby  # Reference to parent lobby
+        self.block_points = 3  # Player's block points
+        self.init_ui()  # Initialize UI
+        apply_dark_theme(self)  # Apply dark theme
+        self._last_round_for_chat = 0  # Track last round for chat
+        self.setMinimumSize(700, 500)  # Set minimum window size
+        self.setAttribute(QtCore.Qt.WidgetAttribute.WA_DeleteOnClose)  # Delete on close
 
-    def prompt_for_username(self):
+    def prompt_for_username(self):  # Prompt user for a username
         name, ok = QtWidgets.QInputDialog.getText(
             self, "Enter Username", "Choose a username:"
         )
-        if ok and name.strip():
-            return name.strip()
-        return None
+        if ok and name.strip():  # If user entered a name
+            return name.strip()  # Return stripped name
+        return None  # Return None if cancelled
 
-    def init_ui(self):
-        layout = create_main_ui(self)
-        create_chat_ui(self)
-        connect_chat_signals(self)
-        self.game_frame = QFrame()
-        self.game_frame.setObjectName("GameArea")
-        game_layout = QVBoxLayout(self.game_frame)
-        game_layout.setContentsMargins(0, 0, 0, 0)
-        game_layout.setSpacing(0)
-        game_layout.addLayout(layout)
-        self.chat_frame = QFrame()
-        self.chat_frame.setObjectName("ChatArea")
-        chat_layout = QVBoxLayout(self.chat_frame)
-        chat_layout.setContentsMargins(0, 0, 0, 0)
-        chat_layout.setSpacing(0)
-        chat_layout.addWidget(self.chat_container)
-        splitter = DoubleLineSplitter()
-        splitter.setOrientation(Qt.Orientation.Horizontal)
-        splitter.addWidget(self.game_frame)
-        splitter.addWidget(self.chat_frame)
-        splitter.setChildrenCollapsible(False)
-        splitter.setStretchFactor(0, 1)
-        splitter.setStretchFactor(1, 1)
-        self.setLayout(QVBoxLayout())
-        self.layout().addWidget(splitter)
-        self.layout().setContentsMargins(0, 0, 0, 0)
-        self.layout().setSpacing(0)
-        splitter.setSizes([400, 300])
-        self.setFixedWidth(700)
-        self.splitter = splitter
-        self.game_frame_ref = self.game_frame
-        self.chat_frame_ref = self.chat_frame
-        layout.addWidget(self.message_toggle_btn)
-        self.attack_btn.clicked.connect(lambda: self.select_action("attack"))
-        self.block_btn.clicked.connect(lambda: self.select_action("block"))
-        self.load_btn.clicked.connect(lambda: self.select_action("load"))
-        self.standby_btn.clicked.connect(lambda: self.select_action("standby"))
-        # Use asyncio.create_task to call async submit_action
+    def init_ui(self):  # Initialize the main UI
+        layout = create_main_ui(self)  # Create main game UI layout
+        create_chat_ui(self)  # Create chat UI
+        connect_chat_signals(self)  # Connect chat signals
+        self.game_frame = QFrame()  # Create game area frame
+        self.game_frame.setObjectName("GameArea")  # Set object name for styling
+        game_layout = QVBoxLayout(self.game_frame)  # Layout for game area
+        game_layout.setContentsMargins(0, 0, 0, 0)  # No margins
+        game_layout.setSpacing(0)  # No spacing
+        game_layout.addLayout(layout)  # Add main layout to game area
+        self.chat_frame = QFrame()  # Create chat area frame
+        self.chat_frame.setObjectName("ChatArea")  # Set object name for styling
+        chat_layout = QVBoxLayout(self.chat_frame)  # Layout for chat area
+        chat_layout.setContentsMargins(0, 0, 0, 0)  # No margins
+        chat_layout.setSpacing(0)  # No spacing
+        chat_layout.addWidget(self.chat_container)  # Add chat container widget
+        splitter = DoubleLineSplitter()  # Create custom splitter
+        splitter.setOrientation(Qt.Orientation.Horizontal)  # Set horizontal orientation
+        splitter.addWidget(self.game_frame)  # Add game frame to splitter
+        splitter.addWidget(self.chat_frame)  # Add chat frame to splitter
+        splitter.setChildrenCollapsible(False)  # Prevent collapsing
+        splitter.setStretchFactor(0, 1)  # Set stretch factor for game area
+        splitter.setStretchFactor(1, 1)  # Set stretch factor for chat area
+        self.setLayout(QVBoxLayout())  # Set main layout for widget
+        self.layout().addWidget(splitter)  # Add splitter to main layout
+        self.layout().setContentsMargins(0, 0, 0, 0)  # No margins
+        self.layout().setSpacing(0)  # No spacing
+        splitter.setSizes([400, 300])  # Set initial splitter sizes
+        self.setFixedWidth(700)  # Set fixed window width
+        self.splitter = splitter  # Store splitter reference
+        self.game_frame_ref = self.game_frame  # Store game frame reference
+        self.chat_frame_ref = self.chat_frame  # Store chat frame reference
+        layout.addWidget(self.message_toggle_btn)  # Add chat toggle button to layout
+        self.attack_btn.clicked.connect(
+            lambda: self.select_action("attack")
+        )  # Connect attack button
+        self.block_btn.clicked.connect(
+            lambda: self.select_action("block")
+        )  # Connect block button
+        self.load_btn.clicked.connect(
+            lambda: self.select_action("load")
+        )  # Connect load button
+        self.standby_btn.clicked.connect(
+            lambda: self.select_action("standby")
+        )  # Connect standby button
         self.submit_btn.clicked.connect(
             lambda: asyncio.create_task(self.submit_action())
-        )
-        self.reset_btn.clicked.connect(self.reset_game)
+        )  # Connect submit button to async action
+        self.reset_btn.clicked.connect(self.reset_game)  # Connect reset button
 
-        def clear_chat_alert(checked):
+        def clear_chat_alert(checked):  # Toggle chat button text
             if checked:
                 self.message_toggle_btn.setText("Hide Chat")
             else:
                 self.message_toggle_btn.setText("Show Chat")
 
-        self.message_toggle_btn.toggled.connect(clear_chat_alert)
+        self.message_toggle_btn.toggled.connect(clear_chat_alert)  # Connect toggle
 
-        def toggle_game_area(checked):
+        def toggle_game_area(checked):  # Toggle game area visibility
             main_window = self.window()
             if checked:
                 if self.splitter.count() == 2:
@@ -116,7 +125,7 @@ class GameClient(QtWidgets.QWidget):
             if not checked:
                 main_window._prev_full_width = main_window.width()
 
-        def toggle_chat_area(checked):
+        def toggle_chat_area(checked):  # Toggle chat area visibility
             main_window = self.window()
             self.chat_frame_ref.setVisible(checked)
             if checked:
@@ -132,16 +141,18 @@ class GameClient(QtWidgets.QWidget):
                 else:
                     main_window.setFixedWidth(0)
 
-        self.hide_game_btn.setChecked(True)
-        self.hide_game_btn.toggled.connect(toggle_game_area)
-        self.message_toggle_btn.setChecked(True)
-        self.message_toggle_btn.toggled.connect(toggle_chat_area)
+        self.hide_game_btn.setChecked(True)  # Set hide game button checked
+        self.hide_game_btn.toggled.connect(toggle_game_area)  # Connect toggle
+        self.message_toggle_btn.setChecked(True)  # Set chat toggle checked
+        self.message_toggle_btn.toggled.connect(toggle_chat_area)  # Connect toggle
         if self.splitter.count() == 2:
             self.splitter.widget(0).setParent(None)
         self.hide_game_btn.setText("<")
         self.chat_frame_ref.setVisible(True)
         self.game_frame_ref.setVisible(False)
-        QTimer.singleShot(0, lambda: self.setFixedWidth(300))
+        QTimer.singleShot(
+            0, lambda: self.setFixedWidth(300)
+        )  # Set width after event loop
 
     def update_block_points_ui(self):
         # Debug: Print current block points and label existence
@@ -408,7 +419,7 @@ class GameClient(QtWidgets.QWidget):
                     self.round_label.setText(f"Round: {self.round}")
                     loaded_emoji = "✅" if self.loaded else "❌"
                     self.loaded_label.setText(f"Loaded: {loaded_emoji}")
-                    self.status_label.setText("Select your move")
+                    self.status_label.setText("connected")
                     self.enable_buttons()
                     self.update_block_points_ui()  # Ensure shield UI updates every round
                 elif msg_type == "game_over":
@@ -512,7 +523,7 @@ class GameClient(QtWidgets.QWidget):
         self.round_label.setText(f"Round: {self.round}")
         loaded_emoji = "✅" if self.loaded else "❌"
         self.loaded_label.setText(f"Loaded: {loaded_emoji}")
-        self.status_label.setText("Select your move")
+        self.status_label.setText("connected")
         self.enable_buttons()
         self.update_block_points_ui()
 
@@ -560,7 +571,7 @@ class GameClient(QtWidgets.QWidget):
             self.round_label.setText(f"Round: {self.round}")
             loaded_emoji = "✅" if self.loaded else "❌"
             self.loaded_label.setText(f"Loaded: {loaded_emoji}")
-            self.status_label.setText("Select your move")
+            self.status_label.setText("connected")
             self.enable_buttons()
             self.update_block_points_ui()  # Ensure shield UI updates every round
         elif msg_type == "game_over":

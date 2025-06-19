@@ -1,3 +1,4 @@
+# game-server.py - Game server logic for handling multiplayer matches
 # =========================================
 #              IMPORTS
 # =========================================
@@ -494,3 +495,5 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+# TODO: Add comments to all server functions and classes, including any stubs or placeholders.

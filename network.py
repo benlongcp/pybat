@@ -1,3 +1,5 @@
+# network.py - Networking utilities for client-server communication
+
 # =========================================
 #              IMPORTS
 # =========================================
@@ -25,3 +27,6 @@ async def connect_to_server(uri, name="Player"):
     except Exception as e:
         print(f"WebSocket connection error: {e}")
         return None
+
+
+# TODO: Add comments to all networking functions and classes, including any stubs or placeholders.

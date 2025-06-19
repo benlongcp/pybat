@@ -1,8 +1,12 @@
+# handlers.py - Event and message handlers for game logic
+# TODO: Add comments to all handler functions, including any stubs or placeholders.
+
 import json
 from PyQt6.QtWidgets import QMessageBox
 
 
 async def handle_ws_messages(ws, lobby):
+    """Handle incoming WebSocket messages for the lobby and game events."""
     print("[handle_ws_messages] Entered message loop")
     async for msg in ws:
         print(f"[handle_ws_messages] Raw message: {msg}")

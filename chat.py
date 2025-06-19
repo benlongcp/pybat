@@ -2,17 +2,16 @@
 #              IMPORTS
 # =========================================
 from PyQt6.QtWidgets import (
-    QVBoxLayout,
-    QWidget,
-    QTextEdit,
-    QPushButton,
-    QSizePolicy,
-    QHBoxLayout,
+    QVBoxLayout,  # Vertical layout manager
+    QWidget,  # Base widget
+    QTextEdit,  # Multi-line text input/display
+    QPushButton,  # Button widget
+    QSizePolicy,  # Widget size policy
+    QHBoxLayout,  # Horizontal layout manager
 )
-from PyQt6.QtCore import Qt
-import json
-import asyncio
-import functools
+from PyQt6.QtCore import Qt  # Qt constants for alignment
+import asyncio  # For async tasks in chat handlers
+import json  # For encoding/decoding messages
 
 
 # =========================================
@@ -20,39 +19,41 @@ import functools
 # =========================================
 def create_chat_ui(self):
     # --- Chat toggle button ---
-    self.message_toggle_btn = QPushButton("Show Chat")
-    self.message_toggle_btn.setCheckable(True)
-    self.message_toggle_btn.setChecked(True)
-    self.message_toggle_btn.setText("Hide Chat")
+    self.message_toggle_btn = QPushButton("Show Chat")  # Button to show/hide chat
+    self.message_toggle_btn.setCheckable(True)  # Make it a toggle button
+    self.message_toggle_btn.setChecked(True)  # Start as checked (chat visible)
+    self.message_toggle_btn.setText("Hide Chat")  # Set initial text
 
     # --- Chat container and layout ---
-    self.chat_container = QWidget()
+    self.chat_container = QWidget()  # Container for chat UI
     self.chat_container.setSizePolicy(
         QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
-    )
-    self.chat_layout = QVBoxLayout(self.chat_container)
-    self.chat_layout.setContentsMargins(10, 10, 10, 10)
-    self.chat_layout.setSpacing(24)
-    self.chat_layout.setAlignment(Qt.AlignmentFlag.AlignRight)
+    )  # Allow chat to expand
+    self.chat_layout = QVBoxLayout(self.chat_container)  # Layout for chat container
+    self.chat_layout.setContentsMargins(10, 10, 10, 10)  # Margins
+    self.chat_layout.setSpacing(24)  # Spacing between widgets
+    self.chat_layout.setAlignment(Qt.AlignmentFlag.AlignRight)  # Align right
 
     # --- Chat display (read-only log) ---
-    self.chat_display = QTextEdit()
-    self.chat_display.setReadOnly(True)
-    self.chat_display.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-    self.chat_display.setStyleSheet("margin-bottom: 12px; margin-top: 12px;")
+    self.chat_display = QTextEdit()  # Text area for chat log
+    self.chat_display.setReadOnly(True)  # Make it read-only
+    self.chat_display.setVerticalScrollBarPolicy(
+        Qt.ScrollBarPolicy.ScrollBarAsNeeded
+    )  # Scrollbar as needed
+    self.chat_display.setStyleSheet("margin-bottom: 12px; margin-top: 12px;")  # Margins
     self.chat_display.setSizePolicy(
         QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
-    )
-    self.chat_layout.addWidget(self.chat_display, stretch=10)
+    )  # Expand to fill space
+    self.chat_layout.addWidget(self.chat_display, stretch=10)  # Add to layout
 
     # --- Message input box ---
-    self.message_input = QTextEdit()
-    self.message_input.setPlaceholderText("Type your message here...")
-    self.message_input.setFixedHeight(60)
+    self.message_input = QTextEdit()  # Text area for message input
+    self.message_input.setPlaceholderText("Type your message here...")  # Placeholder
+    self.message_input.setFixedHeight(60)  # Fixed height
     self.message_input.setSizePolicy(
         QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
-    )
-    self.chat_layout.addWidget(self.message_input, stretch=0)
+    )  # Expand horizontally, fixed vertically
+    self.chat_layout.addWidget(self.message_input, stretch=0)  # Add to layout
 
     # --- Enter key submits message ---
     def handle_message_input_key(event):
@@ -66,25 +67,34 @@ def create_chat_ui(self):
         else:
             QTextEdit.keyPressEvent(self.message_input, event)
 
-    self.message_input.keyPressEvent = handle_message_input_key
+    self.message_input.keyPressEvent = handle_message_input_key  # Override key event
 
     # --- Send button ---
-    self.send_btn = QPushButton("Send")
-    self.send_btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-    send_row = QVBoxLayout()
-    send_row.setContentsMargins(0, 0, 0, 0)
-    send_row.setSpacing(0)
-    send_row.addWidget(self.send_btn)
-    self.chat_layout.addLayout(send_row, stretch=0)
+    self.send_btn = QPushButton("Send")  # Button to send message
+    self.send_btn.setSizePolicy(
+        QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+    )  # Expand horizontally
+
+    # --- Send button and Hide Chat button row ---
+    button_row = QHBoxLayout()  # Horizontal layout for buttons
+    button_row.setContentsMargins(0, 0, 0, 0)  # No margins
+    button_row.setSpacing(12)  # Add spacing between buttons (padding)
+    button_row.addWidget(self.send_btn)  # Add submit/send button
+    # Add 4px margin around the hide chat button
+    self.message_toggle_btn.setStyleSheet("margin: 4px;")
+    button_row.addWidget(self.message_toggle_btn)  # Add hide/show chat button
+    self.chat_layout.addLayout(button_row, stretch=0)  # Add to chat layout
 
     # --- Exit Room Button ---
-    self.exit_room_btn = QPushButton("Exit Room / Return to Lobby")
+    self.exit_room_btn = QPushButton(
+        "Exit Room / Return to Lobby"
+    )  # Button to exit room
     self.exit_room_btn.setSizePolicy(
         QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
-    )
+    )  # Expand horizontally
     self.exit_room_btn.setStyleSheet(
         "background-color: #c62828; color: white; font-weight: bold; border-radius: 6px; padding: 8px 0; margin-top: 16px;"
-    )
+    )  # Style for exit button
 
     def handle_exit_room():
         # Send leave_room message to server and close game window
@@ -97,7 +107,7 @@ def create_chat_ui(self):
             self.close()
             self.parent_lobby.show_lobby()
 
-    self.exit_room_btn.clicked.connect(handle_exit_room)
+    self.exit_room_btn.clicked.connect(handle_exit_room)  # Connect exit button
     # Add the button at the very bottom of the chat layout
     self.chat_layout.addStretch(1)
     self.chat_layout.addWidget(
