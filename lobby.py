@@ -43,11 +43,40 @@ class LobbyWindow(QtWidgets.QWidget):
         self.setWindowTitle(f"Lobby - {username}")
         self.resize(600, 400)
         self.layout = QtWidgets.QHBoxLayout(self)
+
+        # --- Group Chat Section (NEW) ---
+        chat_col = QtWidgets.QVBoxLayout()
+        self.lobby_chat_display = QtWidgets.QTextEdit()
+        self.lobby_chat_display.setReadOnly(True)
+        self.lobby_chat_display.setMinimumWidth(220)
+        self.lobby_chat_display.setMaximumWidth(350)
+        self.lobby_chat_display.setStyleSheet(
+            "background:#222; color:#fff; border-radius:6px; padding:6px;"
+        )
+        chat_col.addWidget(self.lobby_chat_display, stretch=10)
+        self.lobby_chat_input = QtWidgets.QLineEdit()
+        self.lobby_chat_input.setPlaceholderText("Type a message to the lobby...")
+        chat_col.addWidget(self.lobby_chat_input)
+        self.lobby_chat_send_btn = QtWidgets.QPushButton("Send")
+        chat_col.addWidget(self.lobby_chat_send_btn)
+        chat_col.addStretch(1)
+        chat_col_widget = QtWidgets.QWidget()
+        chat_col_widget.setLayout(chat_col)
+        self.layout.addWidget(chat_col_widget)
+
+        # --- Connected Clients List + Invite Button (now vertical) ---
+        user_col = QtWidgets.QVBoxLayout()
         self.user_list = QtWidgets.QListWidget()
-        self.layout.addWidget(self.user_list)
+        user_col.addWidget(self.user_list)
         self.invite_button = QtWidgets.QPushButton("Invite")
         self.invite_button.setEnabled(False)
-        self.layout.addWidget(self.invite_button)
+        user_col.addWidget(self.invite_button)
+        user_col.addStretch(1)
+        user_col_widget = QtWidgets.QWidget()
+        user_col_widget.setLayout(user_col)
+        self.layout.addWidget(user_col_widget)
+
+        # --- Rooms List Section ---
         self.room_list = QtWidgets.QListWidget()
         self.layout.addWidget(self.room_list)
         self.create_room_button = QtWidgets.QPushButton("Create Open Room")
@@ -77,6 +106,37 @@ class LobbyWindow(QtWidgets.QWidget):
         from chat import connect_lobby_invite
 
         connect_lobby_invite(self, self.user_list)
+
+        # Connect chat send button
+        self.lobby_chat_send_btn.clicked.connect(self.send_lobby_chat)
+        self.lobby_chat_input.returnPressed.connect(self.send_lobby_chat)
+
+    def send_lobby_chat(self):
+        message = self.lobby_chat_input.text().strip()
+        print(f"[CLIENT] send_lobby_chat called with: {message}")
+        print(f"[CLIENT] self.ws: {self.ws}")
+        if hasattr(self.ws, "closed"):
+            print(f"[CLIENT] self.ws.closed: {self.ws.closed}")
+        if message:
+            import asyncio, json
+
+            print(f"[CLIENT] Sending lobby_chat to server: {message}")
+            try:
+                asyncio.create_task(
+                    self.ws.send(json.dumps({"type": "lobby_chat", "message": message}))
+                )
+            except Exception as e:
+                print(f"[CLIENT] Exception sending lobby_chat: {e}")
+            self.lobby_chat_input.clear()
+
+    def append_lobby_chat(self, sender, message):
+        if sender == self.username:
+            color = "#1565c0"  # blue
+        else:
+            color = "#c62828"  # red
+        self.lobby_chat_display.append(
+            f'<b><span style="color:{color};">{sender}:</span></b> {message}'
+        )
 
     def on_user_selected(self):
         selected = self.user_list.selectedItems()

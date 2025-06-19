@@ -125,6 +125,26 @@ async def handle_message(ws, data):
                         {"type": "chat", "sender": sender_name, "message": message}
                     )
                 )
+    elif data["type"] == "lobby_chat":
+        # Broadcast lobby chat message to all users in the lobby
+        sender = LOBBY.get(ws, "?")
+        message = data.get("message", "")
+        print(f"[SERVER] Received lobby_chat from {sender}: {message}")
+        print(f"[SERVER] USERS: {[LOBBY.get(u, '?') for u in USERS]}")
+        print(f"[SERVER] USERS_IN_ROOM: {[LOBBY.get(u, '?') for u in USERS_IN_ROOM]}")
+        for user_ws in USERS:
+            if user_ws in LOBBY and user_ws not in USERS_IN_ROOM:
+                try:
+                    print(f"[SERVER] Sending lobby_chat to {LOBBY.get(user_ws, '?')}")
+                    await user_ws.send(
+                        json.dumps(
+                            {"type": "lobby_chat", "sender": sender, "message": message}
+                        )
+                    )
+                except Exception as e:
+                    print(
+                        f"[SERVER] Failed to send lobby_chat to {LOBBY.get(user_ws, '?')}: {e}"
+                    )
 
 
 # =========================================
@@ -397,7 +417,7 @@ async def handler(ws):
             ):
                 await handle_lobby_message(ws, data)
             # Game message handling
-            elif data.get("type") in ("submit", "reset", "chat"):
+            elif data.get("type") in ("submit", "reset", "chat", "lobby_chat"):
                 await handle_message(ws, data)
     except Exception as e:
         print(f"Error: {e}")

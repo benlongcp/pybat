@@ -26,7 +26,10 @@ async def main_async():
         async with websockets.connect("ws://localhost:8765") as ws:
             ws.loop = asyncio.get_event_loop()
             print("[main_async] Connected to server, sending name...")
-            await ws.send(json.dumps({"name": username}))
+            print(
+                f"[main_async] Sending name message: {{'type': 'name', 'name': username}}"
+            )
+            await ws.send(json.dumps({"type": "name", "name": username}))
             print("[main_async] Name sent, creating LobbyWindow...")
             lobby = LobbyWindow(ws, username)
             lobby.show()

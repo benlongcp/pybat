@@ -5,8 +5,21 @@ from PyQt6.QtWidgets import QMessageBox
 async def handle_ws_messages(ws, lobby):
     print("[handle_ws_messages] Entered message loop")
     async for msg in ws:
-        print(f"[handle_ws_messages] Received: {msg}")
+        print(f"[handle_ws_messages] Raw message: {msg}")
         data = json.loads(msg)
+        if data.get("type") == "lobby_chat":
+            sender = data.get("sender", "?")
+            message = data.get("message", "")
+            print(f"[handle_ws_messages] lobby_chat from {sender}: {message}")
+            if hasattr(lobby, "append_lobby_chat"):
+                try:
+                    lobby.append_lobby_chat(sender, message)
+                    print("[handle_ws_messages] Called lobby.append_lobby_chat")
+                except Exception as e:
+                    print(f"[handle_ws_messages] Exception in append_lobby_chat: {e}")
+            else:
+                print("[handle_ws_messages] lobby has no append_lobby_chat method!")
+            continue
         if lobby.game_window:
             print(f"[handle_ws_messages] Forwarding to game_window: {data.get('type')}")
             if data.get("type") in (
